@@ -95,16 +95,26 @@ wss.on('connection', (ws) => {
         if (!text && !image && !isCallLog) return;
         const m = {
           type: 'chat',
+          id: 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
           name: ws.name,
           text,
           image,
           time: Date.now(),
           isCallLog,
           callType: msg.callType || 'voice',
-          duration: Number(msg.duration) || 0
+          duration: Number(msg.duration) || 0,
+          replyTo: msg.replyTo || null
         };
         broadcast(rooms.get(ws.roomId), m); // gửi ngay, lưu sau để không làm chậm chat
         store.addMessage(ws.roomId, m).catch(e => console.error('Không lưu được tin nhắn:', e.message));
+      } else if (msg.type === 'delete' && ws.roomId) {
+        const msgId = String(msg.id || '');
+        if (!msgId) return;
+        const ok = await store.deleteMessage(ws.roomId, msgId, ws.name);
+        if (ok) {
+          // Báo cho cả 2 người cùng xóa tin nhắn đó trên giao diện
+          broadcast(rooms.get(ws.roomId), { type: 'deleted', id: msgId });
+        }
       } else if (msg.type === 'typing' && ws.roomId) {
         for (const c of rooms.get(ws.roomId)) if (c !== ws) send(c, { type: 'typing', name: ws.name });
       }

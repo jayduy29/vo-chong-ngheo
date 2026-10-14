@@ -55,6 +55,17 @@ function fileStore(file) {
       history.set(id, list);
       save();
     },
+    async deleteMessage(roomId, msgId, userName) {
+      let list = history.get(roomId) || [];
+      const idx = list.findIndex(m => m.id === msgId && m.name === userName);
+      if (idx !== -1) {
+        list.splice(idx, 1);
+        history.set(roomId, list);
+        save();
+        return true;
+      }
+      return false;
+    },
   };
 }
 
@@ -98,6 +109,11 @@ function mongoStore(uri) {
       await messages.insertOne({ room: id, createdAt: new Date(m.time || Date.now()), ...m });
       const old = await messages.find({ room: id }).sort({ time: -1 }).skip(MAX_HISTORY).project({ _id: 1 }).toArray();
       if (old.length) await messages.deleteMany({ _id: { $in: old.map(d => d._id) } });
+    },
+    async deleteMessage(roomId, msgId, userName) {
+      // Chỉ xóa nếu đúng room, đúng id và đúng chính chủ (name) đã gửi
+      const res = await messages.deleteOne({ room: roomId, id: msgId, name: userName });
+      return res.deletedCount > 0;
     },
   };
 }

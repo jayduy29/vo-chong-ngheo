@@ -16,9 +16,20 @@
   #chat{display:none;height:min(680px,95vh);flex-direction:column}
   header{padding:14px 18px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;font-size:14px}
   #msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
-  .m{max-width:78%;padding:9px 13px;border-radius:14px;background:#334155;word-wrap:break-word;white-space:pre-wrap}
+  .m{max-width:82%;padding:9px 13px;border-radius:14px;background:#334155;word-wrap:break-word;white-space:pre-wrap;position:relative;transition:transform 0.15s ease-out;user-select:none}
   .m.me{align-self:flex-end;background:#6366f1}
-  .m small{display:block;opacity:.65;font-size:11px;margin-bottom:2px}
+  .m-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+  .m small{opacity:.65;font-size:11px}
+  .m-actions{display:flex;gap:6px;margin-left:8px}
+  .m-del{background:transparent;border:0;color:#fca5a5;cursor:pointer;font-size:12px;padding:0 2px;opacity:0.8}
+  .m-del:hover{opacity:1;color:#ef4444}
+  .m-reply{background:transparent;border:0;color:#cbd5e1;cursor:pointer;font-size:12px;padding:0 2px;opacity:0.8}
+  .m-reply:hover{opacity:1;color:#fff}
+  .reply-quote{background:rgba(0,0,0,0.25);border-left:3px solid #38bdf8;padding:4px 8px;border-radius:4px;margin-bottom:6px;font-size:12px;color:#cbd5e1}
+  .reply-quote b{color:#38bdf8}
+  #replyBar{display:none;align-items:center;justify-content:space-between;padding:6px 14px;background:#1e293b;border-top:1px solid #334155;font-size:13px}
+  #replyText{color:#38bdf8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80vw}
+  #cancelReply{background:transparent;border:0;color:#94a3b8;font-size:16px;cursor:pointer}
   .sys{align-self:center;font-size:12px;opacity:.6}
   #typing{height:18px;padding:0 18px;font-size:12px;opacity:.6}
   form{display:flex;gap:8px;padding:12px;border-top:1px solid #334155}
@@ -44,14 +55,16 @@
   .m.call-log{align-self:center;background:#1e293bdd;border:1px solid #334155;border-radius:14px;padding:8px 16px;font-size:13px;display:flex;align-items:center;gap:8px;max-width:90%}
   .call-icon{font-size:16px}
   .m .pic{display:block;max-width:240px;max-height:260px;width:auto;height:auto;border-radius:10px;margin-top:4px;cursor:zoom-in}
+  .pic-wrapper{position:relative;display:inline-block}
   #imgBtn{background:#334155;padding:12px 14px}
   #galleryModal{display:none;position:fixed;inset:0;background:#000c;z-index:9000;align-items:center;justify-content:center}
   .gallery-content{background:#1e293b;border-radius:16px;width:min(500px,94vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,0.8)}
   .gallery-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #334155}
   .gallery-header h3{margin:0;font-size:16px}
   #galleryGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;padding:16px;overflow-y:auto;max-height:calc(85vh - 65px)}
-  #galleryGrid img{width:100%;height:90px;object-fit:cover;border-radius:8px;cursor:pointer;transition:transform 0.15s}
-  #galleryGrid img:hover{transform:scale(1.05)}
+  .gallery-item{position:relative;width:100%;height:90px}
+  .gallery-item img{width:100%;height:100%;object-fit:cover;border-radius:8px;cursor:pointer}
+  .gallery-del{position:absolute;top:4px;right:4px;background:#ef4444dd;color:#fff;border:0;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;padding:0}
   #galleryEmpty{grid-column:1/-1;text-align:center;padding:30px 10px;opacity:.6;font-size:14px}
   #lightbox{display:none;position:fixed;inset:0;background:#000d;align-items:center;justify-content:center;z-index:10005;cursor:zoom-out}
   #lightbox img{max-width:95vw;max-height:95vh;border-radius:8px}
@@ -82,8 +95,16 @@
     </div>
     <div id="videoBox"><video id="remoteVideo" autoplay playsinline></video><video id="localVideo" autoplay playsinline muted></video></div>
     <div id="msgs"></div>
-    <div id="typing"></div>
-    <form id="form"><button type="button" id="imgBtn" title="Gửi ảnh">📎</button><input id="text" placeholder="Nhập tin nhắn..." autocomplete="off"><button>Gửi</button><input type="file" id="imgFile" accept="image/*" hidden></form>
+    <div id="replyBar">
+      <span id="replyText"></span>
+      <button id="cancelReply" type="button" title="Hủy trả lời">✖</button>
+    </div>
+    <form id="form">
+      <button type="button" id="imgBtn" title="Gửi ảnh">📎</button>
+      <input id="text" placeholder="Nhập tin nhắn..." autocomplete="off">
+      <button>Gửi</button>
+      <input type="file" id="imgFile" accept="image/*" multiple hidden>
+    </form>
   </div>
 </div>
 <!-- Modal Thư viện ảnh -->
@@ -108,28 +129,121 @@ function add(cls, html) {
   $('msgs').appendChild(d); $('msgs').scrollTop = 1e9;
   return d;
 }
+let currentReply = null;
+
+function setReply(m) {
+  currentReply = {
+    id: m.id,
+    name: m.name,
+    text: m.text ? (m.text.length > 50 ? m.text.slice(0, 50) + '...' : m.text) : (m.image ? '[Hình ảnh]' : '[Cuộc gọi]')
+  };
+  $('replyText').textContent = `Đang trả lời ${currentReply.name === myName ? 'chính bạn' : currentReply.name}: "${currentReply.text}"`;
+  $('replyBar').style.display = 'flex';
+  $('text').focus();
+}
+
+function clearReply() {
+  currentReply = null;
+  $('replyBar').style.display = 'none';
+  $('replyText').textContent = '';
+}
+
+$('cancelReply').onclick = clearReply;
+
 function addChat(m) {
   const me = m.name === myName, when = new Date(m.time);
   const t = when.toDateString() === new Date().toDateString()
     ? when.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     : when.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  
   if (m.isCallLog) {
     const icon = m.callType === 'video' ? '🎥' : '📞';
     const desc = m.duration > 0 ? `Cuộc gọi ${m.callType === 'video' ? 'video' : 'thoại'} (${formatDuration(m.duration)})` : `Cuộc gọi ${m.callType === 'video' ? 'video' : 'thoại'} nhỡ`;
-    add('m call-log', `<span class="call-icon">${icon}</span> <span><b>${me ? 'Bạn' : esc(m.name)}</b>: ${desc} · <small style="opacity:.7">${t}</small></span>`);
+    const d = add('m call-log', `<span class="call-icon">${icon}</span> <span><b>${me ? 'Bạn' : esc(m.name)}</b>: ${desc} · <small style="opacity:.7">${t}</small></span>`);
+    if (m.id) d.id = 'msg_' + m.id;
     return;
   }
-  const d = add('m' + (me ? ' me' : ''), `<small>${me ? 'Bạn' : esc(m.name)} · ${t}</small>${m.text ? esc(m.text) : ''}`);
+
+  let replyHtml = '';
+  if (m.replyTo) {
+    replyHtml = `<div class="reply-quote"><b>${esc(m.replyTo.name)}</b>: ${esc(m.replyTo.text)}</div>`;
+  }
+
+  const d = document.createElement('div');
+  d.className = 'm' + (me ? ' me' : '');
+  if (m.id) d.id = 'msg_' + m.id;
+
+  d.innerHTML = `
+    <div class="m-header">
+      <small>${me ? 'Bạn' : esc(m.name)} · ${t}</small>
+      <span class="m-actions">
+        <button class="m-reply" title="Trả lời tin nhắn">↩</button>
+        ${me && m.id ? `<button class="m-del" title="Xóa tin nhắn của bạn">🗑️</button>` : ''}
+      </span>
+    </div>
+    ${replyHtml}
+    ${m.text ? `<div>${esc(m.text)}</div>` : ''}
+  `;
+
   if (m.image) {
-    allImages.unshift(m.image); // Lưu vào danh sách thư viện ảnh
+    if (m.id) allImages.unshift({ id: m.id, src: m.image, name: m.name });
+    const imgWrap = document.createElement('div');
+    imgWrap.className = 'pic-wrapper';
     const img = document.createElement('img');
-    img.className = 'pic'; img.src = m.image;
+    img.className = 'pic';
+    img.src = m.image;
     img.onload = () => { $('msgs').scrollTop = 1e9; };
     img.onclick = () => { $('lightImg').src = m.image; $('lightbox').style.display = 'flex'; };
-    d.appendChild(img);
+    imgWrap.appendChild(img);
+    d.appendChild(imgWrap);
   }
+
+  // Sự kiện nút Reply và Delete trên tin nhắn
+  const replyBtn = d.querySelector('.m-reply');
+  if (replyBtn) replyBtn.onclick = (e) => { e.stopPropagation(); setReply(m); };
+  
+  const delBtn = d.querySelector('.m-del');
+  if (delBtn) {
+    delBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (confirm('Bạn có chắc muốn xóa tin nhắn / ảnh này không?')) {
+        ws.send(JSON.stringify({ type: 'delete', id: m.id }));
+      }
+    };
+  }
+
+  // Vuốt ngang (Swipe to reply) trên điện thoại và cảm ứng
+  let startX = 0, currentX = 0, isSwiping = false;
+  d.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    isSwiping = true;
+  }, { passive: true });
+
+  d.addEventListener('touchmove', e => {
+    if (!isSwiping) return;
+    currentX = e.touches[0].clientX;
+    const diff = currentX - startX;
+    if (diff > 10 && diff < 80) { // Vuốt sang phải
+      d.style.transform = `translateX(${diff}px)`;
+    }
+  }, { passive: true });
+
+  d.addEventListener('touchend', e => {
+    if (!isSwiping) return;
+    isSwiping = false;
+    const diff = currentX - startX;
+    d.style.transform = '';
+    if (diff > 50) {
+      setReply(m);
+    }
+  });
+
+  $('msgs').appendChild(d);
+  $('msgs').scrollTop = 1e9;
 }
-const allImages = [];
+
+const allImages = []; // { id, src, name }
+
 function renderGallery() {
   const g = $('galleryGrid');
   g.innerHTML = '';
@@ -137,13 +251,28 @@ function renderGallery() {
     g.innerHTML = '<div id="galleryEmpty">Chưa có hình ảnh nào được gửi trong 30 ngày qua.</div>';
     return;
   }
-  allImages.forEach(src => {
-    const img = document.createElement('img');
-    img.src = src;
-    img.onclick = () => { $('lightImg').src = src; $('lightbox').style.display = 'flex'; };
-    g.appendChild(img);
+  allImages.forEach(item => {
+    const wrap = document.createElement('div');
+    wrap.className = 'gallery-item';
+    wrap.id = 'gal_' + item.id;
+    const isMine = item.name === myName;
+    wrap.innerHTML = `
+      <img src="${item.src}">
+      ${isMine ? `<button class="gallery-del" title="Xóa ảnh này">✕</button>` : ''}
+    `;
+    wrap.querySelector('img').onclick = () => { $('lightImg').src = item.src; $('lightbox').style.display = 'flex'; };
+    if (isMine) {
+      wrap.querySelector('.gallery-del').onclick = (e) => {
+        e.stopPropagation();
+        if (confirm('Xóa ảnh này khỏi thư viện và đoạn chat?')) {
+          ws.send(JSON.stringify({ type: 'delete', id: item.id }));
+        }
+      };
+    }
+    g.appendChild(wrap);
   });
 }
+
 $('galleryBtn').onclick = () => { renderGallery(); $('galleryModal').style.display = 'flex'; };
 $('closeGallery').onclick = () => { $('galleryModal').style.display = 'none'; };
 $('galleryModal').onclick = e => { if (e.target === $('galleryModal')) $('galleryModal').style.display = 'none'; };
@@ -181,6 +310,17 @@ $('join').onclick = () => {
       addChat(m);
       $('typing').textContent = '';
       if (m.name !== myName) notify(m.name, m.text || '📷 Đã gửi một ảnh');
+    } else if (m.type === 'deleted') {
+      // Xóa tin nhắn khỏi màn hình chat
+      const el = $('msg_' + m.id);
+      if (el) el.remove();
+      // Xóa khỏi danh sách thư viện ảnh
+      const idx = allImages.findIndex(img => img.id === m.id);
+      if (idx !== -1) {
+        allImages.splice(idx, 1);
+        const galEl = $('gal_' + m.id);
+        if (galEl) galEl.remove();
+      }
     } else if (m.type === 'bg') {
       applyBg(m.data);
     } else if (m.type === 'signal') {
@@ -191,9 +331,11 @@ $('join').onclick = () => {
     }
   };
 };
+
 function applyBg(url) {
   $('chat').style.backgroundImage = url ? `linear-gradient(#0f172a80,#0f172a80),url(${url})` : '';
 }
+
 function resizeImage(file, max, quality) {
   return new Promise((resolve, reject) => {
     const img = new Image(), url = URL.createObjectURL(file);
@@ -209,29 +351,50 @@ function resizeImage(file, max, quality) {
     img.src = url;
   });
 }
+
 $('bgBtn').onclick = () => $('bgFile').click();
 $('bgFile').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try { ws.send(JSON.stringify({ type: 'bg', data: await resizeImage(f, 1000, 0.75) })); }
   catch { alert('Không đọc được ảnh.'); }
 };
+
 $('form').onsubmit = e => {
   e.preventDefault();
   const text = $('text').value.trim();
   if (!text || ws.readyState !== 1) return;
-  ws.send(JSON.stringify({ type: 'chat', text })); $('text').value = '';
+  const payload = { type: 'chat', text };
+  if (currentReply) {
+    payload.replyTo = currentReply;
+    clearReply();
+  }
+  ws.send(JSON.stringify(payload));
+  $('text').value = '';
 };
+
 $('text').oninput = () => {
   if (Date.now() - lastTyping > 1000) { lastTyping = Date.now(); ws.send(JSON.stringify({ type: 'typing' })); }
 };
 
-// ===== Gửi ảnh =====
+// ===== Gửi nhiều ảnh cùng lúc =====
 $('imgBtn').onclick = () => $('imgFile').click();
 $('imgFile').onchange = async e => {
-  const f = e.target.files[0]; e.target.value = '';
-  if (!f || ws.readyState !== 1) return;
-  try { ws.send(JSON.stringify({ type: 'chat', image: await resizeImage(f, 1000, 0.75) })); }
-  catch { alert('Không đọc được ảnh.'); }
+  const files = Array.from(e.target.files);
+  e.target.value = '';
+  if (!files.length || ws.readyState !== 1) return;
+  for (const f of files) {
+    try {
+      const imgData = await resizeImage(f, 1000, 0.75);
+      const payload = { type: 'chat', image: imgData };
+      if (currentReply) {
+        payload.replyTo = currentReply;
+        clearReply();
+      }
+      ws.send(JSON.stringify(payload));
+    } catch {
+      console.error('Lỗi đọc ảnh:', f.name);
+    }
+  }
 };
 
 // ===== Bật/tắt camera trong cuộc gọi =====
