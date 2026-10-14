@@ -5,3 +5,6 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: npm start
+    envVars:
+      - key: MONGODB_URI
+        sync: false # nhập chuỗi kết nối trên Render, không ghi vào repo
