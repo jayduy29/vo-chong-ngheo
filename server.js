@@ -91,8 +91,18 @@ wss.on('connection', (ws) => {
         const text = String(msg.text || '').trim().slice(0, 2000);
         const image = typeof msg.image === 'string' && msg.image.length <= MAX_IMAGE_CHARS && IMAGE_RE.test(msg.image)
           ? msg.image : null;
-        if (!text && !image) return;
-        const m = { type: 'chat', name: ws.name, text, image, time: Date.now() };
+        const isCallLog = !!msg.isCallLog;
+        if (!text && !image && !isCallLog) return;
+        const m = {
+          type: 'chat',
+          name: ws.name,
+          text,
+          image,
+          time: Date.now(),
+          isCallLog,
+          callType: msg.callType || 'voice',
+          duration: Number(msg.duration) || 0
+        };
         broadcast(rooms.get(ws.roomId), m); // gửi ngay, lưu sau để không làm chậm chat
         store.addMessage(ws.roomId, m).catch(e => console.error('Không lưu được tin nhắn:', e.message));
       } else if (msg.type === 'typing' && ws.roomId) {

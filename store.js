@@ -3,7 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const MAX_HISTORY = 100; // số tin nhắn giữ lại mỗi phòng
+const MAX_HISTORY = 3000; // lưu tối đa 3000 tin nhắn mỗi phòng trong 30 ngày
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function fileStore(file) {
   const history = new Map(), auth = new Map(), bg = new Map();
@@ -28,6 +29,11 @@ function fileStore(file) {
     }, 1000);
   }
 
+  function cleanExpired(list) {
+    const cutoff = Date.now() - THIRTY_DAYS_MS;
+    return list.filter(m => m.time && m.time >= cutoff);
+  }
+
   return {
     name: 'file (' + file + ')',
     async init() {},
@@ -35,10 +41,16 @@ function fileStore(file) {
     async setAuth(id, cred) { auth.set(id, cred); save(); },
     async getBg(id) { return bg.get(id) || null; },
     async setBg(id, data) { if (data) bg.set(id, data); else bg.delete(id); save(); },
-    async getHistory(id) { return history.get(id) || []; },
+    async getHistory(id) {
+      let list = history.get(id) || [];
+      list = cleanExpired(list);
+      history.set(id, list);
+      return list;
+    },
     async addMessage(id, m) {
-      const list = history.get(id) || [];
+      let list = history.get(id) || [];
       list.push(m);
+      list = cleanExpired(list);
       if (list.length > MAX_HISTORY) list.splice(0, list.length - MAX_HISTORY);
       history.set(id, list);
       save();
@@ -58,6 +70,10 @@ function mongoStore(uri) {
       rooms = db.collection('rooms');       // { _id: roomId, auth: {salt, hash}, bg: dataURL }
       messages = db.collection('messages'); // { room, name, text, image, time }
       await messages.createIndex({ room: 1, time: 1 });
+      // Tự động xóa tin nhắn sau 30 ngày (30 * 86400 = 2592000 giây)
+      try {
+        await messages.createIndex({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+      } catch {}
     },
     async getAuth(id) {
       const d = await rooms.findOne({ _id: id }, { projection: { auth: 1 } });
@@ -74,11 +90,12 @@ function mongoStore(uri) {
       await rooms.updateOne({ _id: id }, data ? { $set: { bg: data } } : { $unset: { bg: '' } }, { upsert: true });
     },
     async getHistory(id) {
-      const docs = await messages.find({ room: id }).sort({ time: -1 }).limit(MAX_HISTORY).toArray();
-      return docs.reverse().map(({ _id, room, ...m }) => m);
+      const cutoff = Date.now() - THIRTY_DAYS_MS;
+      const docs = await messages.find({ room: id, time: { $gte: cutoff } }).sort({ time: -1 }).limit(MAX_HISTORY).toArray();
+      return docs.reverse().map(({ _id, room, createdAt, ...m }) => m);
     },
     async addMessage(id, m) {
-      await messages.insertOne({ room: id, ...m });
+      await messages.insertOne({ room: id, createdAt: new Date(m.time || Date.now()), ...m });
       const old = await messages.find({ room: id }).sort({ time: -1 }).skip(MAX_HISTORY).project({ _id: 1 }).toArray();
       if (old.length) await messages.deleteMany({ _id: { $in: old.map(d => d._id) } });
     },

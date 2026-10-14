@@ -37,13 +37,23 @@
   #callHang{background:#dc2626}
   #callAccept{background:#16a34a;font-weight:bold;animation:pulse 1s infinite}
   @keyframes pulse { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
-  #videoBox{display:none;position:fixed;inset:0;background:#000;z-index:40;width:100vw;height:100vh}
+  #videoBox{display:none;position:fixed;inset:0;background:#000;z-index:9999;width:100vw;height:100vh}
   #remoteVideo{width:100%;height:100%;object-fit:cover}
-  #localVideo{position:absolute;right:16px;bottom:80px;width:110px;height:160px;object-fit:cover;border-radius:12px;border:2px solid #fff;transform:scaleX(-1);background:#222;z-index:42;box-shadow:0 4px 15px rgba(0,0,0,0.5)}
-  #videoBox.fullscreen #callbar{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:#1e293bdd;border-radius:30px;padding:8px 20px;width:max-content;max-width:90vw}
+  #localVideo{position:absolute;right:16px;bottom:100px;width:100px;height:145px;object-fit:cover;border-radius:12px;border:2px solid #fff;transform:scaleX(-1);background:#222;z-index:10000;box-shadow:0 4px 15px rgba(0,0,0,0.6)}
+  #videoBox.fullscreen #callbar{position:fixed;bottom:25px;left:50%;transform:translateX(-50%);background:#0f172aee;border-radius:35px;padding:10px 24px;width:max-content;max-width:92vw;z-index:10001;box-shadow:0 4px 20px rgba(0,0,0,0.7);display:flex}
+  .m.call-log{align-self:center;background:#1e293bdd;border:1px solid #334155;border-radius:14px;padding:8px 16px;font-size:13px;display:flex;align-items:center;gap:8px;max-width:90%}
+  .call-icon{font-size:16px}
   .m .pic{display:block;max-width:240px;max-height:260px;width:auto;height:auto;border-radius:10px;margin-top:4px;cursor:zoom-in}
   #imgBtn{background:#334155;padding:12px 14px}
-  #lightbox{display:none;position:fixed;inset:0;background:#000d;align-items:center;justify-content:center;z-index:60;cursor:zoom-out}
+  #galleryModal{display:none;position:fixed;inset:0;background:#000c;z-index:9000;align-items:center;justify-content:center}
+  .gallery-content{background:#1e293b;border-radius:16px;width:min(500px,94vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,0.8)}
+  .gallery-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #334155}
+  .gallery-header h3{margin:0;font-size:16px}
+  #galleryGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;padding:16px;overflow-y:auto;max-height:calc(85vh - 65px)}
+  #galleryGrid img{width:100%;height:90px;object-fit:cover;border-radius:8px;cursor:pointer;transition:transform 0.15s}
+  #galleryGrid img:hover{transform:scale(1.05)}
+  #galleryEmpty{grid-column:1/-1;text-align:center;padding:30px 10px;opacity:.6;font-size:14px}
+  #lightbox{display:none;position:fixed;inset:0;background:#000d;align-items:center;justify-content:center;z-index:10005;cursor:zoom-out}
   #lightbox img{max-width:95vw;max-height:95vh;border-radius:8px}
 </style>
 </head>
@@ -60,6 +70,7 @@
   <div id="chat">
     <header><span id="title"></span><span id="status"></span>
       <span class="tools">
+        <button id="galleryBtn" title="Thư viện ảnh đã gửi">📸</button>
         <button id="callBtn" title="Gọi thoại">📞</button>
         <button id="videoBtn" title="Gọi video">🎥</button>
         <button id="bgBtn" title="Đổi hình nền">🖼️</button>
@@ -73,6 +84,16 @@
     <div id="msgs"></div>
     <div id="typing"></div>
     <form id="form"><button type="button" id="imgBtn" title="Gửi ảnh">📎</button><input id="text" placeholder="Nhập tin nhắn..." autocomplete="off"><button>Gửi</button><input type="file" id="imgFile" accept="image/*" hidden></form>
+  </div>
+</div>
+<!-- Modal Thư viện ảnh -->
+<div id="galleryModal">
+  <div class="gallery-content">
+    <div class="gallery-header">
+      <h3>📸 Thư viện ảnh (30 ngày)</h3>
+      <button id="closeGallery" style="background:transparent;font-size:20px;padding:4px 8px;cursor:pointer">✖</button>
+    </div>
+    <div id="galleryGrid"></div>
   </div>
 </div>
 <div id="lightbox" onclick="this.style.display='none'"><img id="lightImg" alt=""></div>
@@ -92,14 +113,44 @@ function addChat(m) {
   const t = when.toDateString() === new Date().toDateString()
     ? when.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     : when.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  if (m.isCallLog) {
+    const icon = m.callType === 'video' ? '🎥' : '📞';
+    const desc = m.duration > 0 ? `Cuộc gọi ${m.callType === 'video' ? 'video' : 'thoại'} (${formatDuration(m.duration)})` : `Cuộc gọi ${m.callType === 'video' ? 'video' : 'thoại'} nhỡ`;
+    add('m call-log', `<span class="call-icon">${icon}</span> <span><b>${me ? 'Bạn' : esc(m.name)}</b>: ${desc} · <small style="opacity:.7">${t}</small></span>`);
+    return;
+  }
   const d = add('m' + (me ? ' me' : ''), `<small>${me ? 'Bạn' : esc(m.name)} · ${t}</small>${m.text ? esc(m.text) : ''}`);
   if (m.image) {
+    allImages.unshift(m.image); // Lưu vào danh sách thư viện ảnh
     const img = document.createElement('img');
     img.className = 'pic'; img.src = m.image;
     img.onload = () => { $('msgs').scrollTop = 1e9; };
     img.onclick = () => { $('lightImg').src = m.image; $('lightbox').style.display = 'flex'; };
     d.appendChild(img);
   }
+}
+const allImages = [];
+function renderGallery() {
+  const g = $('galleryGrid');
+  g.innerHTML = '';
+  if (!allImages.length) {
+    g.innerHTML = '<div id="galleryEmpty">Chưa có hình ảnh nào được gửi trong 30 ngày qua.</div>';
+    return;
+  }
+  allImages.forEach(src => {
+    const img = document.createElement('img');
+    img.src = src;
+    img.onclick = () => { $('lightImg').src = src; $('lightbox').style.display = 'flex'; };
+    g.appendChild(img);
+  });
+}
+$('galleryBtn').onclick = () => { renderGallery(); $('galleryModal').style.display = 'flex'; };
+$('closeGallery').onclick = () => { $('galleryModal').style.display = 'none'; };
+$('galleryModal').onclick = e => { if (e.target === $('galleryModal')) $('galleryModal').style.display = 'none'; };
+
+function formatDuration(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
 }
 const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -214,39 +265,57 @@ document.addEventListener('visibilitychange', () => {
 });
 
 let ringTimer = null;
+// Nhạc chuông iPhone Marimba kinh điển tạo bằng Web Audio
 function startRingtone() {
   stopRingtone();
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume();
   } catch {}
-  function playNote(freq, time, dur) {
+  function playMarimbaBar(freq, time) {
     if (!audioCtx) return;
-    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
-    o.frequency.value = freq;
-    g.gain.setValueAtTime(0.12, time);
-    g.gain.exponentialRampToValueAtTime(0.001, time + dur);
-    o.start(time); o.stop(time + dur);
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, time);
+    // Độ nảy và âm sắc gõ mộc bản quyền iPhone Marimba
+    gain.gain.setValueAtTime(0.18, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.28);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(time); osc.stop(time + 0.3);
   }
-  function ringCycle() {
+  // Giai điệu Marimba: C6, A5, F5, D5, G5, E5, C5...
+  const notes = [
+    { f: 1046.5, d: 0.00 }, // C6
+    { f: 880.00, d: 0.14 }, // A5
+    { f: 698.46, d: 0.28 }, // F5
+    { f: 587.33, d: 0.42 }, // D5
+    { f: 783.99, d: 0.56 }, // G5
+    { f: 659.25, d: 0.70 }, // E5
+    { f: 523.25, d: 0.84 }, // C5
+    { f: 659.25, d: 1.05 }, // E5
+    { f: 783.99, d: 1.19 }, // G5
+    { f: 1046.5, d: 1.33 }, // C6
+    { f: 880.00, d: 1.47 }  // A5
+  ];
+  function playPhrase() {
     if (!audioCtx) return;
-    const now = audioCtx.currentTime;
-    playNote(480, now, 0.4);
-    playNote(440, now + 0.1, 0.4);
-    playNote(480, now + 0.6, 0.6);
-    playNote(440, now + 0.7, 0.6);
+    const start = audioCtx.currentTime;
+    notes.forEach(n => playMarimbaBar(n.f, start + n.d));
   }
-  ringCycle();
-  ringTimer = setInterval(ringCycle, 2800);
+  playPhrase();
+  ringTimer = setInterval(playPhrase, 2200);
 }
 function stopRingtone() {
   if (ringTimer) { clearInterval(ringTimer); ringTimer = null; }
 }
 
-// ===== Gọi thoại (WebRTC) =====
+// ===== Gọi thoại & Video (WebRTC) =====
 let pc, localStream, pendingOffer, pendingIce = [], inCall = false;
+let callStartTime = 0, callDurationTimer = null, callInitiator = false;
+let activeCallType = 'voice';
+
 const sig = data => ws.send(JSON.stringify({ type: 'signal', data }));
+
 function showCall(text, { accept = false, hang = false, mute = false, cam = false } = {}) {
   $('callbar').style.display = text ? 'flex' : 'none';
   $('callText').textContent = text || '';
@@ -262,6 +331,18 @@ function showCall(text, { accept = false, hang = false, mute = false, cam = fals
   }
 }
 let callVideo = false, pendingVideo = false;
+
+function startCallTimer() {
+  callStartTime = Date.now();
+  if (callDurationTimer) clearInterval(callDurationTimer);
+  callDurationTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+    const m = Math.floor(elapsed / 60), s = elapsed % 60;
+    const timeStr = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    $('callText').textContent = (callVideo ? '🎥 ' : '🔊 ') + timeStr;
+  }, 1000);
+}
+
 function newPC() {
   pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
   localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
@@ -270,11 +351,13 @@ function newPC() {
   pc.onconnectionstatechange = () => {
     if (pc && pc.connectionState === 'connected') {
       stopRingtone();
-      showCall(callVideo ? '🎥 Đang gọi video' : '🔊 Đang trong cuộc gọi', { hang: true, mute: true, cam: callVideo });
+      startCallTimer();
+      showCall(callVideo ? '🎥 Đang kết nối...' : '🔊 Đang kết nối...', { hang: true, mute: true, cam: callVideo });
     }
     if (pc && ['failed', 'disconnected', 'closed'].includes(pc.connectionState)) endCall(false);
   };
 }
+
 async function getMedia(video) {
   if (!navigator.mediaDevices) throw new Error('Trình duyệt cần HTTPS hoặc localhost để dùng micro/camera.');
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: video ? { facingMode: 'user' } : false });
@@ -283,39 +366,66 @@ async function getMedia(video) {
   if (video) {
     $('videoBox').classList.add('fullscreen');
     $('videoBox').style.display = 'block';
-    $('videoBox').appendChild($('callbar')); // Đưa callbar vào trong video để điều khiển khi full màn hình
   } else {
     $('videoBox').style.display = 'none';
-    $('chat').insertBefore($('callbar'), $('msgs')); // Trả callbar về lại vị trí bình thường
   }
   $('localVideo').style.display = video ? '' : 'none';
 }
+
+function logCallHistory(duration) {
+  if (!callInitiator) return; // Chỉ người khởi xướng gửi 1 tin nhắn log để tránh trùng lặp
+  const logMsg = {
+    type: 'chat',
+    text: '',
+    isCallLog: true,
+    callType: activeCallType,
+    duration: duration,
+    time: Date.now()
+  };
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(logMsg));
+}
+
 function endCall(notify = true) {
   stopRingtone();
+  let duration = 0;
+  if (callStartTime > 0) {
+    duration = Math.floor((Date.now() - callStartTime) / 1000);
+    clearInterval(callDurationTimer);
+    callDurationTimer = null;
+  }
+  if (inCall) logCallHistory(duration);
+
   if (notify && inCall && ws.readyState === 1) sig({ kind: 'end' });
   if (pc) { pc.onconnectionstatechange = null; pc.close(); pc = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
   $('remoteVideo').srcObject = null; $('localVideo').srcObject = null;
   $('videoBox').style.display = 'none';
   $('videoBox').classList.remove('fullscreen');
-  $('chat').insertBefore($('callbar'), $('msgs')); // Đưa callbar về đúng chỗ
   pendingOffer = null; pendingIce = []; inCall = false; callVideo = false; pendingVideo = false;
+  callStartTime = 0; callInitiator = false;
   showCall('');
 }
+
 async function startCall(video) {
   if (inCall) return;
   if ($('status').textContent.indexOf('2/2') < 0) return alert('Người kia chưa online.');
   try {
+    activeCallType = video ? 'video' : 'voice';
+    callInitiator = true;
     await getMedia(video); inCall = true; newPC();
     showCall(video ? '🎥 Đang gọi video...' : '📞 Đang gọi...', { hang: true });
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
     sig({ kind: 'offer', sdp: offer, video });
   } catch (err) { alert(err.message); endCall(false); }
 }
+
 $('callBtn').onclick = () => startCall(false);
 $('videoBtn').onclick = () => startCall(true);
+
 $('callAccept').onclick = async () => {
   try {
+    activeCallType = pendingVideo ? 'video' : 'voice';
+    callInitiator = false;
     await getMedia(pendingVideo); inCall = true; newPC();
     await pc.setRemoteDescription(pendingOffer); pendingOffer = null;
     for (const c of pendingIce) await pc.addIceCandidate(c); pendingIce = [];
@@ -324,18 +434,28 @@ $('callAccept').onclick = async () => {
     showCall('Đang kết nối...', { hang: true });
   } catch (err) { alert(err.message); sig({ kind: 'end' }); endCall(false); }
 };
+
 $('callHang').onclick = () => {
   if (!inCall && pendingOffer) sig({ kind: 'end' }); // từ chối cuộc gọi đến
   endCall(inCall);
 };
+
 $('callMute').onclick = () => {
   const t = localStream && localStream.getAudioTracks()[0]; if (!t) return;
   t.enabled = !t.enabled; $('callMute').textContent = t.enabled ? '🎤' : '🔇';
 };
+
+$('callCam').onclick = () => {
+  const t = localStream && localStream.getVideoTracks()[0]; if (!t) return;
+  t.enabled = !t.enabled; $('callCam').textContent = t.enabled ? '📹' : '🚫';
+};
+
 async function onSignal(d) {
   if (d.kind === 'offer') {
     if (inCall || pendingOffer) return sig({ kind: 'end' });
     pendingOffer = d.sdp; pendingIce = []; pendingVideo = !!d.video;
+    activeCallType = pendingVideo ? 'video' : 'voice';
+    callInitiator = false;
     showCall(pendingVideo ? '🎥 Có cuộc gọi video đến...' : '📞 Có cuộc gọi đến...', { accept: true });
   } else if (d.kind === 'answer' && pc) {
     await pc.setRemoteDescription(d.sdp);
