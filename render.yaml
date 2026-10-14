@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: vo-chong-ngheo
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start

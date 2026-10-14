@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vợ chồng nghèo</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;height:100vh;display:flex;align-items:center;justify-content:center}
+  .card{background:#1e293b;border-radius:16px;width:min(440px,95vw);box-shadow:0 10px 40px #0008}
+  #login{padding:28px;display:flex;flex-direction:column;gap:12px}
+  h1{margin:0 0 6px;font-size:22px}
+  input{padding:12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:inherit;font-size:15px}
+  button{padding:12px 18px;border:0;border-radius:10px;background:#6366f1;color:#fff;font-size:15px;cursor:pointer}
+  button:hover{background:#4f46e5}
+  #chat{display:none;height:min(680px,95vh);flex-direction:column}
+  header{padding:14px 18px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;font-size:14px}
+  #msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+  .m{max-width:78%;padding:9px 13px;border-radius:14px;background:#334155;word-wrap:break-word;white-space:pre-wrap}
+  .m.me{align-self:flex-end;background:#6366f1}
+  .m small{display:block;opacity:.65;font-size:11px;margin-bottom:2px}
+  .sys{align-self:center;font-size:12px;opacity:.6}
+  #typing{height:18px;padding:0 18px;font-size:12px;opacity:.6}
+  form{display:flex;gap:8px;padding:12px;border-top:1px solid #334155}
+  form input{flex:1}
+  #err{color:#f87171;font-size:13px}
+  #chat{background-size:cover;background-position:center}
+  #msgs{background:transparent}
+  .tools button{padding:4px 9px;font-size:14px;background:#334155;margin-left:6px}
+  .tools button:hover{background:#475569}
+  .sys{background:#0f172a99;padding:2px 10px;border-radius:10px;opacity:.9}
+  header,form,#typing{background:#1e293bcc}
+  #callbar{display:none;justify-content:space-between;align-items:center;padding:8px 14px;background:#16a34acc;font-size:14px}
+  #callbar button{padding:5px 10px;font-size:13px;margin-left:6px}
+  #callHang{background:#dc2626}
+  #videoBox{display:none;position:relative;background:#000;height:240px}
+  #remoteVideo{width:100%;height:100%;object-fit:cover}
+  #localVideo{position:absolute;right:10px;bottom:10px;width:90px;height:120px;object-fit:cover;border-radius:10px;border:2px solid #fff;transform:scaleX(-1);background:#222}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="login">
+    <h1>💬 Vợ chồng nghèo</h1>
+    <input id="name" placeholder="Tên của bạn" maxlength="30">
+    <input id="room" placeholder="Mã phòng (gửi cho bạn bè)" maxlength="50">
+    <button id="join">Vào phòng</button>
+    <div id="err"></div>
+  </div>
+  <div id="chat">
+    <header><span id="title"></span><span id="status"></span>
+      <span class="tools">
+        <button id="callBtn" title="Gọi thoại">📞</button>
+        <button id="videoBtn" title="Gọi video">🎥</button>
+        <button id="bgBtn" title="Đổi hình nền">🖼️</button>
+        <button id="bgReset" title="Xóa hình nền">✖</button>
+        <input type="file" id="bgFile" accept="image/*" hidden>
+      </span>
+    </header>
+    <div id="callbar"><span id="callText"></span>
+      <span><button id="callAccept">✅ Nghe</button><button id="callMute">🎤</button><button id="callHang">📵 Cúp</button></span>
+    </div>
+    <div id="videoBox"><video id="remoteVideo" autoplay playsinline></video><video id="localVideo" autoplay playsinline muted></video></div>
+    <div id="msgs"></div>
+    <div id="typing"></div>
+    <form id="form"><input id="text" placeholder="Nhập tin nhắn..." autocomplete="off"><button>Gửi</button></form>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+let ws, myName, typingTimer, lastTyping = 0;
+const params = new URLSearchParams(location.search);
+if (params.get('room')) $('room').value = params.get('room');
+
+function add(cls, html) {
+  const d = document.createElement('div'); d.className = cls; d.innerHTML = html;
+  $('msgs').appendChild(d); $('msgs').scrollTop = 1e9;
+}
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+$('join').onclick = () => {
+  const name = $('name').value.trim(), room = $('room').value.trim();
+  if (!name || !room) return $('err').textContent = 'Nhập đủ tên và mã phòng.';
+  myName = name;
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+  ws.onopen = () => ws.send(JSON.stringify({ type: 'join', room, name }));
+  ws.onclose = () => { if ($('chat').style.display === 'flex') add('sys', 'Mất kết nối.'); };
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'error') { $('err').textContent = m.text; ws.close(); }
+    else if (m.type === 'joined') {
+      $('login').style.display = 'none'; $('chat').style.display = 'flex';
+      $('title').textContent = 'Phòng: ' + m.room;
+    } else if (m.type === 'system') {
+      add('sys', esc(m.text));
+      $('status').textContent = m.count === 2 ? '🟢 2/2 online' : '🟡 Đang chờ người kia...';
+      if (m.count < 2 && (inCall || pendingOffer)) endCall(false);
+    } else if (m.type === 'chat') {
+      const me = m.name === myName;
+      const t = new Date(m.time).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
+      add('m' + (me ? ' me' : ''), `<small>${me ? 'Bạn' : esc(m.name)} · ${t}</small>${esc(m.text)}`);
+      $('typing').textContent = '';
+    } else if (m.type === 'bg') {
+      applyBg(m.data);
+    } else if (m.type === 'signal') {
+      onSignal(m.data).catch(console.error);
+    } else if (m.type === 'typing') {
+      $('typing').textContent = m.name + ' đang nhập...';
+      clearTimeout(typingTimer); typingTimer = setTimeout(() => $('typing').textContent = '', 1500);
+    }
+  };
+};
+function applyBg(url) {
+  $('chat').style.backgroundImage = url ? `linear-gradient(#0f172a80,#0f172a80),url(${url})` : '';
+}
+$('bgBtn').onclick = () => $('bgFile').click();
+$('bgReset').onclick = () => ws.send(JSON.stringify({ type: 'bg', data: null }));
+$('bgFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const s = Math.min(1, 1000 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = img.width * s; c.height = img.height * s;
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    ws.send(JSON.stringify({ type: 'bg', data: c.toDataURL('image/jpeg', 0.75) }));
+    URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(f);
+  e.target.value = '';
+};
+$('form').onsubmit = e => {
+  e.preventDefault();
+  const text = $('text').value.trim();
+  if (!text || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({ type: 'chat', text })); $('text').value = '';
+};
+$('text').oninput = () => {
+  if (Date.now() - lastTyping > 1000) { lastTyping = Date.now(); ws.send(JSON.stringify({ type: 'typing' })); }
+};
+
+// ===== Gọi thoại (WebRTC) =====
+let pc, localStream, pendingOffer, pendingIce = [], inCall = false;
+const sig = data => ws.send(JSON.stringify({ type: 'signal', data }));
+function showCall(text, { accept = false, hang = false, mute = false } = {}) {
+  $('callbar').style.display = text ? 'flex' : 'none';
+  $('callText').textContent = text || '';
+  $('callAccept').style.display = accept ? '' : 'none';
+  $('callHang').style.display = hang || accept ? '' : 'none';
+  $('callMute').style.display = mute ? '' : 'none';
+  $('callMute').textContent = '🎤';
+}
+let callVideo = false, pendingVideo = false;
+function newPC() {
+  pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  pc.onicecandidate = e => e.candidate && sig({ kind: 'ice', candidate: e.candidate });
+  pc.ontrack = e => { $('remoteVideo').srcObject = e.streams[0]; };
+  pc.onconnectionstatechange = () => {
+    if (pc && pc.connectionState === 'connected') showCall(callVideo ? '🎥 Đang gọi video' : '🔊 Đang trong cuộc gọi', { hang: true, mute: true });
+    if (pc && ['failed', 'disconnected', 'closed'].includes(pc.connectionState)) endCall(false);
+  };
+}
+async function getMedia(video) {
+  if (!navigator.mediaDevices) throw new Error('Trình duyệt cần HTTPS hoặc localhost để dùng micro/camera.');
+  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: video ? { facingMode: 'user' } : false });
+  callVideo = video;
+  $('localVideo').srcObject = localStream;
+  $('videoBox').style.display = video ? 'block' : 'none';
+  $('localVideo').style.display = video ? '' : 'none';
+}
+function endCall(notify = true) {
+  if (notify && inCall && ws.readyState === 1) sig({ kind: 'end' });
+  if (pc) { pc.onconnectionstatechange = null; pc.close(); pc = null; }
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  $('remoteVideo').srcObject = null; $('localVideo').srcObject = null;
+  $('videoBox').style.display = 'none';
+  pendingOffer = null; pendingIce = []; inCall = false; callVideo = false; pendingVideo = false;
+  showCall('');
+}
+async function startCall(video) {
+  if (inCall) return;
+  if ($('status').textContent.indexOf('2/2') < 0) return alert('Người kia chưa online.');
+  try {
+    await getMedia(video); inCall = true; newPC();
+    showCall(video ? '🎥 Đang gọi video...' : '📞 Đang gọi...', { hang: true });
+    const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+    sig({ kind: 'offer', sdp: offer, video });
+  } catch (err) { alert(err.message); endCall(false); }
+}
+$('callBtn').onclick = () => startCall(false);
+$('videoBtn').onclick = () => startCall(true);
+$('callAccept').onclick = async () => {
+  try {
+    await getMedia(pendingVideo); inCall = true; newPC();
+    await pc.setRemoteDescription(pendingOffer); pendingOffer = null;
+    for (const c of pendingIce) await pc.addIceCandidate(c); pendingIce = [];
+    const ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
+    sig({ kind: 'answer', sdp: ans });
+    showCall('Đang kết nối...', { hang: true });
+  } catch (err) { alert(err.message); sig({ kind: 'end' }); endCall(false); }
+};
+$('callHang').onclick = () => {
+  if (!inCall && pendingOffer) sig({ kind: 'end' }); // từ chối cuộc gọi đến
+  endCall(inCall);
+};
+$('callMute').onclick = () => {
+  const t = localStream && localStream.getAudioTracks()[0]; if (!t) return;
+  t.enabled = !t.enabled; $('callMute').textContent = t.enabled ? '🎤' : '🔇';
+};
+async function onSignal(d) {
+  if (d.kind === 'offer') {
+    if (inCall || pendingOffer) return sig({ kind: 'end' });
+    pendingOffer = d.sdp; pendingIce = []; pendingVideo = !!d.video;
+    showCall(pendingVideo ? '🎥 Có cuộc gọi video đến...' : '📞 Có cuộc gọi đến...', { accept: true });
+  } else if (d.kind === 'answer' && pc) {
+    await pc.setRemoteDescription(d.sdp);
+    for (const c of pendingIce) await pc.addIceCandidate(c); pendingIce = [];
+  } else if (d.kind === 'ice') {
+    if (pc && pc.remoteDescription) await pc.addIceCandidate(d.candidate);
+    else pendingIce.push(d.candidate);
+  } else if (d.kind === 'end') {
+    const was = inCall || pendingOffer;
+    endCall(false);
+    if (was) add('sys', 'Cuộc gọi đã kết thúc.');
+  }
+}
+</script>
+</body>
+</html>
