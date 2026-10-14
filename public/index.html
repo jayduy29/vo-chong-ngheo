@@ -58,7 +58,6 @@
         <button id="callBtn" title="Gọi thoại">📞</button>
         <button id="videoBtn" title="Gọi video">🎥</button>
         <button id="bgBtn" title="Đổi hình nền">🖼️</button>
-        <button id="bgReset" title="Xóa hình nền">✖</button>
         <input type="file" id="bgFile" accept="image/*" hidden>
       </span>
     </header>
@@ -155,7 +154,6 @@ function resizeImage(file, max, quality) {
   });
 }
 $('bgBtn').onclick = () => $('bgFile').click();
-$('bgReset').onclick = () => ws.send(JSON.stringify({ type: 'bg', data: null }));
 $('bgFile').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try { ws.send(JSON.stringify({ type: 'bg', data: await resizeImage(f, 1000, 0.75) })); }
