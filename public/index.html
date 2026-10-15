@@ -8,11 +8,24 @@
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;height:100vh;display:flex;align-items:center;justify-content:center}
   .card{background:#1e293b;border-radius:16px;width:min(440px,95vw);box-shadow:0 10px 40px #0008}
-  #login{padding:28px;display:flex;flex-direction:column;gap:12px}
-  h1{margin:0 0 6px;font-size:22px}
-  input{padding:12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:inherit;font-size:15px}
-  button{padding:12px 18px;border:0;border-radius:10px;background:#6366f1;color:#fff;font-size:15px;cursor:pointer}
-  button:hover{background:#4f46e5}
+
+  /* Romantic login styles */
+  #login{padding:32px 28px 28px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden;border-radius:16px}
+  /* soft pink gradient for login area, keeps chat unaffected because #login hides on join */
+  #login::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,#fff0f6 0%,#ffeef6 30%,#fce7f3 100%);opacity:0.95;z-index:0}
+  #login::after{content:'❤';position:absolute;right:-40px;top:-30px;font-size:120px;color:rgba(255,100,150,0.06);transform:rotate(-15deg);z-index:0}
+  h1{margin:0 0 6px;font-size:26px;z-index:1;position:relative;color:#7f1d7a;font-family:Georgia, 'Times New Roman', serif}
+  .subtitle{margin:0;color:#6b21a8;opacity:0.9;font-size:13px;font-style:italic;z-index:1}
+
+  input{padding:12px;border-radius:12px;border:1px solid rgba(127,29,122,0.15);background:rgba(255,255,255,0.9);color:#3b0b3b;font-size:15px;z-index:1}
+  input::placeholder{color:#8b5fbf;opacity:0.9;font-style:italic}
+  button{padding:12px 18px;border:0;border-radius:12px;background:linear-gradient(90deg,#fb7185,#f472b6);color:#fff;font-size:15px;cursor:pointer;z-index:1;box-shadow:0 6px 18px rgba(244,114,182,0.24);transition:transform .12s ease,box-shadow .12s ease}
+  button:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(244,114,182,0.28)}
+  #join{display:flex;align-items:center;justify-content:center;gap:8px}
+  #join .heart{font-size:16px}
+
+  /* Keep original chat styles below (scoped so changes above don't break chat display) */
+  button{ /* fallback for other buttons */ }
   #chat{display:none;height:min(680px,95vh);flex-direction:column}
   header{padding:14px 18px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;font-size:14px}
   #msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
@@ -50,8 +63,8 @@
   @keyframes pulse { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
   #videoBox{display:none;position:fixed;inset:0;background:#000;z-index:9999;width:100vw;height:100vh}
   #remoteVideo{width:100%;height:100%;object-fit:cover}
-  #localVideo{position:absolute;right:16px;bottom:100px;width:100px;height:145px;object-fit:cover;border-radius:12px;border:2px solid #fff;transform:scaleX(-1);background:#222;z-index:10000;box-shadow:0 4px 15px rgba(0,0,0,0.6)}
-  #videoBox.fullscreen #callbar{position:fixed;bottom:25px;left:50%;transform:translateX(-50%);background:#0f172aee;border-radius:35px;padding:10px 24px;width:max-content;max-width:92vw;z-index:10001;box-shadow:0 4px 20px rgba(0,0,0,0.7);display:flex}
+  #localVideo{position:absolute;right:16px;bottom:100px;width:100px;height:145px;object-fit:cover;border-radius:12px;border:2px solid #fff;transform:scaleX(-1);background:#222;z-index:10000;box-shado[...]
+  #videoBox.fullscreen #callbar{position:fixed;bottom:25px;left:50%;transform:translateX(-50%);background:#0f172aee;border-radius:35px;padding:10px 24px;width:max-content;max-width:92vw;z-index:10[...]
   .m.call-log{align-self:center;background:#1e293bdd;border:1px solid #334155;border-radius:14px;padding:8px 16px;font-size:13px;display:flex;align-items:center;gap:8px;max-width:90%}
   .call-icon{font-size:16px}
   .m .pic{display:block;max-width:240px;max-height:260px;width:auto;height:auto;border-radius:10px;margin-top:4px;cursor:zoom-in}
@@ -64,20 +77,31 @@
   #galleryGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;padding:16px;overflow-y:auto;max-height:calc(85vh - 65px)}
   .gallery-item{position:relative;width:100%;height:90px}
   .gallery-item img{width:100%;height:100%;object-fit:cover;border-radius:8px;cursor:pointer}
-  .gallery-del{position:absolute;top:4px;right:4px;background:#ef4444dd;color:#fff;border:0;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;padding:0}
+  .gallery-del{position:absolute;top:4px;right:4px;background:#ef4444dd;color:#fff;border:0;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-siz[...]
   #galleryEmpty{grid-column:1/-1;text-align:center;padding:30px 10px;opacity:.6;font-size:14px}
   #lightbox{display:none;position:fixed;inset:0;background:#000d;align-items:center;justify-content:center;z-index:10005;cursor:zoom-out}
   #lightbox img{max-width:95vw;max-height:95vh;border-radius:8px}
+
+  /* gentle floating hearts animation inside login card */
+  @keyframes floatUp { 0% { transform: translateY(20px) scale(0.9); opacity:0 } 50% { opacity:0.8 } 100% { transform: translateY(-120px) scale(1); opacity:0 } }
+  .heart-bubble{position:absolute;width:18px;height:18px;border-radius:50%;font-size:18px;color:#ff6ea1;z-index:0;opacity:0;pointer-events:none}
+  .hb1{left:12%;bottom:12%;animation:floatUp 4s infinite 0s}
+  .hb2{left:30%;bottom:6%;animation:floatUp 5s infinite 0.6s}
+  .hb3{right:20%;bottom:8%;animation:floatUp 4.6s infinite 1.2s}
 </style>
 </head>
 <body>
 <div class="card">
   <div id="login">
-    <h1>💬 Vợ chồng nghèo</h1>
+    <div class="heart-bubble hb1">❤</div>
+    <div class="heart-bubble hb2">❤</div>
+    <div class="heart-bubble hb3">❤</div>
+    <h1>💞 Vợ chồng nghèo</h1>
+    <p class="subtitle">Một cuộc trò chuyện ngọt ngào bắt đầu từ đây...</p>
     <input id="name" placeholder="Tên của bạn" maxlength="30">
     <input id="room" placeholder="Mã phòng (gửi cho bạn bè)" maxlength="50">
     <input id="pass" type="password" placeholder="Mật khẩu phòng (người đầu tiên đặt)" maxlength="100" autocomplete="current-password">
-    <button id="join">Vào phòng</button>
+    <button id="join"><span class="heart">💗</span> Vào phòng</button>
     <div id="err"></div>
   </div>
   <div id="chat">
@@ -158,7 +182,7 @@ function addChat(m) {
   
   if (m.isCallLog) {
     const icon = m.callType === 'video' ? '🎥' : '📞';
-    const desc = m.duration > 0 ? `Cuộc gọi ${m.callType === 'video' ? 'video' : 'thoại'} (${formatDuration(m.duration)})` : `Cuộc gọi ${m.callType === 'video' ? 'video' : 'thoại'} nhỡ`;
+    const desc = m.duration > 0 ? `Cuộc gọi ${m.callType === 'video' ? 'video' : 'thoại'} (${formatDuration(m.duration)})` : `Cuộc gọi ${m.callType === 'video' ? 'video' : 'thoại'} nh[...]`;
     const d = add('m call-log', `<span class="call-icon">${icon}</span> <span><b>${me ? 'Bạn' : esc(m.name)}</b>: ${desc} · <small style="opacity:.7">${t}</small></span>`);
     if (m.id) d.id = 'msg_' + m.id;
     return;
@@ -281,7 +305,7 @@ function formatDuration(sec) {
   const m = Math.floor(sec / 60), s = sec % 60;
   return m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
 }
-const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => s.replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 $('join').onclick = () => {
   const name = $('name').value.trim(), room = $('room').value.trim(), password = $('pass').value;
@@ -403,7 +427,7 @@ $('callCam').onclick = () => {
   t.enabled = !t.enabled; $('callCam').textContent = t.enabled ? '📹' : '🚫';
 };
 
-// ===== Thông báo tin nhắn mới =====
+// ===== Thông báo tin nhắn mới =====nlet unread = 0, audioCtx;
 let unread = 0, audioCtx;
 const baseTitle = document.title;
 function beep() {
